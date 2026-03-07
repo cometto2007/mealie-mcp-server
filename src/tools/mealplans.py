@@ -12,17 +12,17 @@ def register_mealplan_tools(mcp: FastMCP, client: MealieClient):
             params["startDate"] = start_date
         if end_date:
             params["endDate"] = end_date
-        return await client.get("/groups/mealplans", params=params or None)
+        return await client.get("/households/mealplans", params=params or None)
 
     @mcp.tool()
     async def get_today_meal_plan() -> dict:
         """Get today's meal plan."""
-        return await client.get("/groups/mealplans/today")
+        return await client.get("/households/mealplans/today")
 
     @mcp.tool()
     async def create_meal_plan(date: str, recipe_id: str, entry_type: str = "dinner") -> dict:
         """Create a meal plan entry. entry_type can be breakfast, lunch, dinner, or side."""
-        return await client.post("/groups/mealplans", {
+        return await client.post("/households/mealplans", {
             "date": date,
             "recipeId": recipe_id,
             "entryType": entry_type,
@@ -31,4 +31,4 @@ def register_mealplan_tools(mcp: FastMCP, client: MealieClient):
     @mcp.tool()
     async def delete_meal_plan(plan_id: int) -> dict:
         """Delete a meal plan entry by ID."""
-        return await client.delete(f"/groups/mealplans/{plan_id}")
+        return await client.delete(f"/households/mealplans/{plan_id}")
