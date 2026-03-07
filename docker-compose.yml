@@ -1,0 +1,24 @@
+services:
+  mealie-mcp-server:
+    image: ghcr.io/cometto2007/mealie-mcp-server:latest
+    container_name: mealie-mcp-server
+    restart: unless-stopped
+    environment:
+      MEALIE_URL: ${MEALIE_URL}
+      MEALIE_API_TOKEN: ${MEALIE_API_TOKEN}
+      MCP_TRANSPORT: streamable-http
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8000
+    networks:
+      - chrislabnet
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mealie-mcp.rule=Host(`mealie-mcp.chrislab.it`)"
+      - "traefik.http.routers.mealie-mcp.entrypoints=websecure"
+      - "traefik.http.routers.mealie-mcp.tls=true"
+      - "traefik.http.routers.mealie-mcp.tls.certresolver=cloudflare"
+      - "traefik.http.services.mealie-mcp.loadbalancer.server.port=8000"
+
+networks:
+  chrislabnet:
+    external: true
