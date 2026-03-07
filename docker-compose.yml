@@ -14,7 +14,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.mealie-mcp.rule=Host(`mealie-mcp.chrislab.it`)"
-      - "traefik.http.routers.mealie-mcp.entrypoints=websecure"
+      - "traefik.http.routers.mealie-mcp.entrypoints=https"
       - "traefik.http.routers.mealie-mcp.tls=true"
       - "traefik.http.routers.mealie-mcp.tls.certresolver=letsencrypt"
       - "traefik.http.services.mealie-mcp.loadbalancer.server.port=8000"
