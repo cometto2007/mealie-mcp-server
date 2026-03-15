@@ -51,11 +51,18 @@ def register_recipe_tools(mcp: FastMCP, client: MealieClient):
         saturated_fat_content: Optional[str] = None,
         recipe_ingredient: Optional[list] = None,
         recipe_instructions: Optional[list] = None,
+        show_nutrition: Optional[bool] = None,
+        public: Optional[bool] = None,
+        show_assets: Optional[bool] = None,
+        landscape_view: Optional[bool] = None,
+        disable_comments: Optional[bool] = None,
+        locked: Optional[bool] = None,
     ) -> dict:
         """Partially update a recipe. Only provided fields are sent.
         Nutrition values are per-serving strings (e.g. calories='540').
         recipe_ingredient items must use food/unit objects with id fields.
-        recipe_instructions items must have a 'text' field."""
+        recipe_instructions items must have a 'text' field.
+        Settings fields control recipe display: show_nutrition, public, show_assets, landscape_view, disable_comments, locked."""
         body: dict = {}
 
         if name is not None:
@@ -91,6 +98,18 @@ def register_recipe_tools(mcp: FastMCP, client: MealieClient):
         nutrition = {k: v for k, v in nutrition_map.items() if v is not None}
         if nutrition:
             body["nutrition"] = nutrition
+
+        settings_map = {
+            "showNutrition": show_nutrition,
+            "public": public,
+            "showAssets": show_assets,
+            "landscapeView": landscape_view,
+            "disableComments": disable_comments,
+            "locked": locked,
+        }
+        settings = {k: v for k, v in settings_map.items() if v is not None}
+        if settings:
+            body["settings"] = settings
 
         return await client.patch(f"/recipes/{slug}", body)
 
