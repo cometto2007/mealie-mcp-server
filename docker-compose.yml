@@ -9,9 +9,6 @@ services:
       MCP_TRANSPORT: streamable-http
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8000
-      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
-      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
-      MCP_BASE_URL: ${MCP_BASE_URL}
     networks:
       - chrislabnet
     labels:

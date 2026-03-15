@@ -9,21 +9,7 @@ from src.tools.foods_units import register_foods_units_tools
 
 load_dotenv()
 
-auth = None
-github_client_id = os.environ.get("GITHUB_CLIENT_ID")
-github_client_secret = os.environ.get("GITHUB_CLIENT_SECRET")
-mcp_base_url = os.environ.get("MCP_BASE_URL")
-
-if github_client_id and github_client_secret and mcp_base_url:
-    from fastmcp.server.auth.providers.github import GitHubProvider
-    auth = GitHubProvider(
-        client_id=github_client_id,
-        client_secret=github_client_secret,
-        base_url=mcp_base_url,
-        require_authorization_consent=False,
-    )
-
-mcp = FastMCP("mealie-server", auth=auth)
+mcp = FastMCP("mealie-server", stateless_http=True)
 client = MealieClient()
 
 register_recipe_tools(mcp, client)
