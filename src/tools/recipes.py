@@ -1,6 +1,44 @@
+import uuid
 from typing import Optional
 from fastmcp import FastMCP
 from src.client import MealieClient
+
+
+def _normalize_ingredient(ingredient: dict) -> dict:
+    """Normalize a caller-supplied ingredient into Mealie's expected format.
+
+    Accepts either:
+    - Simplified:  {"quantity": N, "unit_id": "uuid", "food_id": "uuid", "note": "..."}
+    - Passthrough: full Mealie ingredient dict from a GET response
+    """
+    result: dict = {}
+
+    # food — accept food_id shorthand or a pre-formed dict
+    if "food_id" in ingredient:
+        result["food"] = {"id": ingredient["food_id"]}
+    elif "food" in ingredient:
+        result["food"] = ingredient["food"]
+    else:
+        result["food"] = None
+
+    # unit — accept unit_id shorthand or a pre-formed dict
+    if "unit_id" in ingredient:
+        result["unit"] = {"id": ingredient["unit_id"]}
+    elif "unit" in ingredient:
+        result["unit"] = ingredient["unit"]
+    else:
+        result["unit"] = None
+
+    result["quantity"] = ingredient.get("quantity")
+    result["note"] = ingredient.get("note", "")
+    result["title"] = ingredient.get("title", "")
+    result["display"] = ingredient.get("display", "")
+    result["originalText"] = ingredient.get("originalText", None)
+    result["referencedRecipe"] = ingredient.get("referencedRecipe", None)
+    # Preserve existing referenceId (keeps ingredient identity on update) or mint a new one
+    result["referenceId"] = ingredient.get("referenceId") or str(uuid.uuid4())
+
+    return result
 
 
 def register_recipe_tools(mcp: FastMCP, client: MealieClient):
@@ -60,7 +98,8 @@ def register_recipe_tools(mcp: FastMCP, client: MealieClient):
     ) -> dict:
         """Partially update a recipe. Only provided fields are sent.
         Nutrition values are per-serving strings (e.g. calories='540').
-        recipe_ingredient items must use food/unit objects with id fields.
+        recipe_ingredient accepts simplified items: {"quantity": N, "unit_id": "uuid", "food_id": "uuid", "note": ""}
+          or full Mealie ingredient objects from a GET response (referenceId is preserved to update in place).
         recipe_instructions items must have a 'text' field.
         Settings fields control recipe display: show_nutrition, public, show_assets, landscape_view, disable_comments, locked."""
         body: dict = {}
@@ -80,7 +119,7 @@ def register_recipe_tools(mcp: FastMCP, client: MealieClient):
         if org_url is not None:
             body["orgURL"] = org_url
         if recipe_ingredient is not None:
-            body["recipeIngredient"] = recipe_ingredient
+            body["recipeIngredient"] = [_normalize_ingredient(i) for i in recipe_ingredient]
         if recipe_instructions is not None:
             body["recipeInstructions"] = recipe_instructions
 
