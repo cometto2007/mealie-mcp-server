@@ -5,6 +5,7 @@ from src.client import MealieClient
 from src.tools.recipes import register_recipe_tools
 from src.tools.mealplans import register_mealplan_tools
 from src.tools.shopping import register_shopping_tools
+from src.tools.foods_units import register_foods_units_tools
 
 load_dotenv()
 
@@ -14,6 +15,7 @@ client = MealieClient()
 register_recipe_tools(mcp, client)
 register_mealplan_tools(mcp, client)
 register_shopping_tools(mcp, client)
+register_foods_units_tools(mcp, client)
 
 if __name__ == "__main__":
     transport = os.environ.get("MCP_TRANSPORT", "streamable-http")

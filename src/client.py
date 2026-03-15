@@ -42,6 +42,16 @@ class MealieClient:
             response.raise_for_status()
             return response.json()
 
+    async def patch(self, path: str, data: dict) -> Any:
+        async with httpx.AsyncClient() as client:
+            response = await client.patch(
+                f"{self.base_url}/api{path}",
+                headers=self.headers,
+                json=data,
+            )
+            response.raise_for_status()
+            return response.json()
+
     async def delete(self, path: str) -> Any:
         async with httpx.AsyncClient() as client:
             response = await client.delete(

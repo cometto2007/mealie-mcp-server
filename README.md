@@ -4,7 +4,11 @@ A remote MCP server that exposes the [Mealie](https://mealie.io) recipe and meal
 
 ## Features
 
-- **Recipes** — search, get, create, delete recipes
+- **Recipes** — search, get, create, update, delete recipes
+- **Recipe Import** — import recipes from URLs using Mealie's built-in scraper
+- **Nutrition** — update recipe nutrition data (calories, protein, carbs, fat, fiber, sodium, sugar, etc.)
+- **Foods & Units** — list, search, and create ingredient foods and measurement units
+- **Ingredient Parsing** — parse natural language ingredient strings into structured data
 - **Meal Plans** — view today's plan, query by date range, create/delete entries
 - **Shopping Lists** — manage lists and add items
 
