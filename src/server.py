@@ -9,7 +9,7 @@ from src.tools.foods_units import register_foods_units_tools
 
 load_dotenv()
 
-mcp = FastMCP("mealie-server", stateless_http=True)
+mcp = FastMCP("mealie-server")
 client = MealieClient()
 
 register_recipe_tools(mcp, client)
@@ -25,4 +25,4 @@ if __name__ == "__main__":
     if transport == "stdio":
         mcp.run(transport="stdio")
     else:
-        mcp.run(transport="streamable-http", host=host, port=port)
+        mcp.run(transport="streamable-http", host=host, port=port, stateless_http=True)
