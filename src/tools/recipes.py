@@ -4,28 +4,44 @@ from fastmcp import FastMCP
 from src.client import MealieClient
 
 
-def _normalize_ingredient(ingredient: dict) -> dict:
-    """Normalize a caller-supplied ingredient into Mealie's expected format.
+async def _resolve_ingredient(ingredient: dict, client: MealieClient) -> dict:
+    """Resolve a caller-supplied ingredient into a complete Mealie ingredient object.
 
     Accepts either:
     - Simplified:  {"quantity": N, "unit_id": "uuid", "food_id": "uuid", "note": "..."}
-    - Passthrough: full Mealie ingredient dict from a GET response
+    - Passthrough: full Mealie ingredient dict copied from a GET response
+
+    For simplified format, fetches the full food/unit objects from the Mealie API so
+    the PUT body contains the same structure Mealie produced — avoiding the internal
+    ValidationError that occurs when partial food/unit objects are round-tripped through
+    Mealie's SQLAlchemy layer.
     """
     result: dict = {}
 
-    # food — accept food_id shorthand or a pre-formed dict
+    # Resolve food — fetch full object when only id is known
     if "food_id" in ingredient:
-        result["food"] = {"id": ingredient["food_id"]}
-    elif "food" in ingredient:
-        result["food"] = ingredient["food"]
+        result["food"] = await client.get(f"/foods/{ingredient['food_id']}")
+    elif "food" in ingredient and isinstance(ingredient["food"], dict):
+        food = ingredient["food"]
+        food_id = food.get("id")
+        if food_id and "createdAt" not in food:
+            # Partial object (e.g. {id, name}) — fetch full object from API
+            result["food"] = await client.get(f"/foods/{food_id}")
+        else:
+            result["food"] = food  # already a full passthrough object
     else:
         result["food"] = None
 
-    # unit — accept unit_id shorthand or a pre-formed dict
+    # Resolve unit — same pattern
     if "unit_id" in ingredient:
-        result["unit"] = {"id": ingredient["unit_id"]}
-    elif "unit" in ingredient:
-        result["unit"] = ingredient["unit"]
+        result["unit"] = await client.get(f"/units/{ingredient['unit_id']}")
+    elif "unit" in ingredient and isinstance(ingredient["unit"], dict):
+        unit = ingredient["unit"]
+        unit_id = unit.get("id")
+        if unit_id and "createdAt" not in unit:
+            result["unit"] = await client.get(f"/units/{unit_id}")
+        else:
+            result["unit"] = unit
     else:
         result["unit"] = None
 
@@ -35,7 +51,7 @@ def _normalize_ingredient(ingredient: dict) -> dict:
     result["display"] = ingredient.get("display", "")
     result["originalText"] = ingredient.get("originalText", None)
     result["referencedRecipe"] = ingredient.get("referencedRecipe", None)
-    # Preserve existing referenceId (keeps ingredient identity on update) or mint a new one
+    # Preserve existing referenceId so Mealie keeps ingredient identity; mint new UUID otherwise
     result["referenceId"] = ingredient.get("referenceId") or str(uuid.uuid4())
 
     return result
@@ -97,31 +113,39 @@ def register_recipe_tools(mcp: FastMCP, client: MealieClient):
         locked: Optional[bool] = None,
     ) -> dict:
         """Partially update a recipe. Only provided fields are sent.
+
         Nutrition values are per-serving strings (e.g. calories='540').
-        recipe_ingredient accepts simplified items: {"quantity": N, "unit_id": "uuid", "food_id": "uuid", "note": ""}
-          or full Mealie ingredient objects from a GET response (referenceId is preserved to update in place).
+
+        recipe_ingredient: when provided, the tool fetches the full recipe via GET and
+          replaces recipeIngredient with PUT (mirrors what the Mealie frontend does).
+          Each item accepts either:
+            - Simplified: {"quantity": N, "unit_id": "uuid", "food_id": "uuid", "note": ""}
+            - Passthrough: full ingredient object copied from a get_recipe response
+          Pass ALL ingredients (unchanged ones too) — Mealie replaces the entire array.
+
         recipe_instructions items must have a 'text' field.
-        Settings fields control recipe display: show_nutrition, public, show_assets, landscape_view, disable_comments, locked."""
-        body: dict = {}
+        Settings fields: show_nutrition, public, show_assets, landscape_view,
+          disable_comments, locked.
+        """
+        # Build the partial-update dict for non-ingredient fields (used for PATCH)
+        patch_body: dict = {}
 
         if name is not None:
-            body["name"] = name
+            patch_body["name"] = name
         if description is not None:
-            body["description"] = description
+            patch_body["description"] = description
         if recipe_servings is not None:
-            body["recipeServings"] = recipe_servings
+            patch_body["recipeServings"] = recipe_servings
         if total_time is not None:
-            body["totalTime"] = total_time
+            patch_body["totalTime"] = total_time
         if prep_time is not None:
-            body["prepTime"] = prep_time
+            patch_body["prepTime"] = prep_time
         if perform_time is not None:
-            body["performTime"] = perform_time
+            patch_body["performTime"] = perform_time
         if org_url is not None:
-            body["orgURL"] = org_url
-        if recipe_ingredient is not None:
-            body["recipeIngredient"] = [_normalize_ingredient(i) for i in recipe_ingredient]
+            patch_body["orgURL"] = org_url
         if recipe_instructions is not None:
-            body["recipeInstructions"] = recipe_instructions
+            patch_body["recipeInstructions"] = recipe_instructions
 
         nutrition_map = {
             "calories": calories,
@@ -136,7 +160,7 @@ def register_recipe_tools(mcp: FastMCP, client: MealieClient):
         }
         nutrition = {k: v for k, v in nutrition_map.items() if v is not None}
         if nutrition:
-            body["nutrition"] = nutrition
+            patch_body["nutrition"] = nutrition
 
         settings_map = {
             "showNutrition": show_nutrition,
@@ -148,9 +172,28 @@ def register_recipe_tools(mcp: FastMCP, client: MealieClient):
         }
         settings = {k: v for k, v in settings_map.items() if v is not None}
         if settings:
-            body["settings"] = settings
+            patch_body["settings"] = settings
 
-        return await client.patch(f"/recipes/{slug}", body)
+        if recipe_ingredient is not None:
+            # GET the full recipe, resolve ingredient food/unit to complete objects,
+            # apply any other pending field changes, then PUT the whole thing back.
+            # This mirrors what the Mealie frontend does and avoids the internal
+            # ValidationError that Mealie throws when partial food/unit objects are
+            # passed through PATCH's internal GET→merge→update cycle.
+            full_recipe = await client.get(f"/recipes/{slug}")
+
+            resolved = [await _resolve_ingredient(i, client) for i in recipe_ingredient]
+            full_recipe["recipeIngredient"] = resolved
+
+            # Overlay any other field changes onto the full recipe
+            full_recipe.update(patch_body)
+
+            return await client.put(f"/recipes/{slug}", full_recipe)
+
+        if patch_body:
+            return await client.patch(f"/recipes/{slug}", patch_body)
+
+        return {"message": "No fields provided — nothing updated."}
 
     @mcp.tool()
     async def import_recipe_url(url: str, include_tags: bool = False) -> dict:
